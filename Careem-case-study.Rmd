@@ -47,5 +47,6 @@ orders_df %>%
 
 orders_df %>% 
   mutate(order_day = wday(order_datetime, label = T))
+test
 ```
 
