@@ -12,25 +12,30 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-```{r Requred packages}
+```{r Requred packages, include=FALSE}
 library(tidyverse)
 library(lubridate)
 library(ggthemes)
+library(viridis)
+library(plotly)
+library(TTR)
 ```
 
 ##Data Generation
-```{r Generate dataset}
+```{r Generate dataset, include=FALSE}
 set.seed(2);
 order_daterange <- seq(as.POSIXlt("2018-08-01"),as.POSIXlt("2018-12-01"), by = "days")
 
+
 order_datetime <- sample(order_daterange, size = 1000, replace = TRUE)
+order_id <- sample(230:1500, size = length(order_datetime), replace = TRUE)
 store_name = sample(c("McDonald's", "KFC", "Didi Burger", "Broccoli Pizza", "Dipndip", "Doce"), size = length(order_datetime), replace = TRUE)
 store_id = sample(23:150, size = length(order_datetime), replace = TRUE)
 destination = paste0("Neighbourhood ",sample(c('A','B','C','D'),length(order_datetime),rep=T))
 delivery_time <- order_datetime + sample(1200:3600, size = length(order_datetime), rep = T)
 travel_time = round(difftime(delivery_time, order_datetime), 2)
 
-orders_df <- tibble(store_id, store_name, order_datetime, destination, delivery_time, travel_time) %>% 
+orders_df <- tibble(store_id, store_name, order_datetime, order_id, destination, delivery_time, travel_time) %>% 
   mutate(order_day = wday(order_datetime, label = T))
 
 ```
@@ -41,12 +46,20 @@ orders_df %>%
   count() %>%  
   ggplot(aes(order_day, n)) +
   geom_bar(stat = "identity") +
-  scale_color_viridis_c() +
-  theme_fivethirtyeight()
-
+  scale_fill_viridis(option = "viridis") +
+  theme_fivethirtyeight()  +
+    labs(title = "Orders by day of the week ", subtitle = 'Between Aug 1st and Dec 1st, 2018', caption = "Careem case study", y = 'Orders') +
+    theme(legend.position = "none", axis.title = element_text(), axis.title.x = element_blank())
 
 orders_df %>% 
-  mutate(order_day = wday(order_datetime, label = T))
-test
+  group_by(order_datetime) %>% 
+  select( order_datetime) %>% 
+  count() %>%  
+  ggplot(aes(order_datetime, n)) +
+  geom_line()  
+  
+ggplotly()
+
+
 ```
 
