@@ -1,0 +1,51 @@
+---
+title: "Careem Case Study"
+author: "Anish Joni"
+date: "December 12, 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r Requred packages}
+library(tidyverse)
+library(lubridate)
+library(ggthemes)
+```
+
+##Data Generation
+```{r Generate dataset}
+set.seed(2);
+order_daterange <- seq(as.POSIXlt("2018-08-01"),as.POSIXlt("2018-12-01"), by = "days")
+
+order_datetime <- sample(order_daterange, size = 1000, replace = TRUE)
+store_name = sample(c("McDonald's", "KFC", "Didi Burger", "Broccoli Pizza", "Dipndip", "Doce"), size = length(order_datetime), replace = TRUE)
+store_id = sample(23:150, size = length(order_datetime), replace = TRUE)
+destination = paste0("Neighbourhood ",sample(c('A','B','C','D'),length(order_datetime),rep=T))
+delivery_time <- order_datetime + sample(1200:3600, size = length(order_datetime), rep = T)
+travel_time = round(difftime(delivery_time, order_datetime), 2)
+
+orders_df <- tibble(store_id, store_name, order_datetime, destination, delivery_time, travel_time) %>% 
+  mutate(order_day = wday(order_datetime, label = T))
+
+```
+
+```{r EDA & Plots}
+orders_df %>% 
+  group_by(order_day) %>% 
+  count() %>%  
+  ggplot(aes(order_day, n)) +
+  geom_bar(stat = "identity") +
+  scale_color_viridis_c() +
+  theme_fivethirtyeight()
+
+
+orders_df %>% 
+  mutate(order_day = wday(order_datetime, label = T))
+```
+
