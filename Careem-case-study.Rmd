@@ -2,7 +2,11 @@
 title: "Careem Case Study"
 author: "Anish Joni"
 date: "December 12, 2018"
-output: html_document
+output: 
+  flexdashboard::flex_dashboard:
+    vertical_layout: scroll
+    orientation: rows
+runtime: shiny
 editor_options: 
   chunk_output_type: console
 ---
@@ -18,30 +22,57 @@ library(lubridate)
 library(ggthemes)
 library(viridis)
 library(plotly)
-library(TTR)
+library(digest)
+library(htmlwidgets)
+library(flexdashboard)
+library(shiny)
+library(DT)
+library(devtools)
+library(leaflet)
+library(leaflet)
+library(rgeos)
+library(htmltools)
+require(rgdal)
 ```
 
-##Data Generation
+### Careem Food KPIs Overview
 ```{r Generate dataset, include=FALSE}
+################### 
+# Data Generation #
+###################
+
+# Delivery Table
 set.seed(2);
 order_daterange <- seq(as.POSIXlt("2018-08-01"),as.POSIXlt("2018-12-01"), by = "days")
 
+order_range_high <- seq(as.POSIXlt("2018-08-01"),as.POSIXlt("2018-08-17"), by = "days")
+order_range_normal <- seq(as.POSIXlt("2018-08-17"),as.POSIXlt("2018-11-03"), by = "days")
+order_range_low <- seq(as.POSIXlt("2018-11-04"),as.POSIXlt("2018-12-01"), by = "days")
 
-order_datetime <- sample(order_daterange, size = 1000, replace = TRUE)
+order_datetime_high <- sample(order_range_high, size = 250, replace = TRUE)
+order_datetime_normal <- sample(order_range_normal, size = 650, replace = TRUE)
+order_datetime_low <- sample(order_range_low, size = 100, replace = TRUE)
+order_datetime <- c(order_datetime_high, order_datetime_normal, order_datetime_low)
+
+
+#order_datetime <- sample(order_daterange, size = 1000, replace = TRUE)
 order_id <- sample(230:1500, size = length(order_datetime), replace = TRUE)
 store_name = sample(c("McDonald's", "KFC", "Didi Burger", "Broccoli Pizza", "Dipndip", "Doce"), size = length(order_datetime), replace = TRUE)
 store_id = sample(23:150, size = length(order_datetime), replace = TRUE)
-destination = paste0("Neighbourhood ",sample(c('A','B','C','D'),length(order_datetime),rep=T))
+destination = paste0("Neighbourhood ",sample( LETTERS[seq( from = 1, to = 12 )],length(order_datetime),rep=T))
 delivery_time <- order_datetime + sample(1200:3600, size = length(order_datetime), rep = T)
 travel_time = round(difftime(delivery_time, order_datetime), 2)
 
-orders_df <- tibble(store_id, store_name, order_datetime, order_id, destination, delivery_time, travel_time) %>% 
+delivery_df <- tibble(store_id, store_name, order_datetime, order_id, destination, delivery_time, travel_time) %>% 
   mutate(order_day = wday(order_datetime, label = T))
+
+
+# Orders Table
 
 ```
 
-```{r EDA & Plots}
-orders_df %>% 
+```{r EDA & Plots, echo=FALSE}
+orders_by_day <- delivery_df %>% 
   group_by(order_day) %>% 
   count() %>%  
   ggplot(aes(order_day, n)) +
@@ -51,15 +82,137 @@ orders_df %>%
     labs(title = "Orders by day of the week ", subtitle = 'Between Aug 1st and Dec 1st, 2018', caption = "Careem case study", y = 'Orders') +
     theme(legend.position = "none", axis.title = element_text(), axis.title.x = element_blank())
 
-orders_df %>% 
+#ggplotly(orders_by_day)
+
+order_trends<- delivery_df %>% 
   group_by(order_datetime) %>% 
-  select( order_datetime) %>% 
+  select(order_datetime) %>% 
   count() %>%  
   ggplot(aes(order_datetime, n)) +
-  geom_line()  
+  geom_line() +
+  geom_smooth() +
+  scale_fill_viridis(option = "viridis") +
+  theme_fivethirtyeight()  +
+    labs(title = "Trends in orders over time ", subtitle = 'Between Aug 1st and Dec 1st, 2018', caption = "Careem case study", y = '# Orders') +
+    theme(legend.position = "none", axis.title = element_text(), axis.title.x = element_blank())
   
-ggplotly()
+#ggplotly(order_trends)
 
+
+```
+Dashboard
+=======================================================================
+<!-- Column {.sidebar} -->
+<!-- ----------------------------------------------------------------------- -->
+<!-- ```{r} -->
+
+<!-- ``` -->
+
+
+Row
+-------------------------------------
+    
+### Total Orders served {.value-box}
+```{r}
+orderCount <- 24 #Dummy
+renderValueBox({
+  valueBox(orderCount)
+})
+```
+
+### Growth rate from last month {.value-box}
+```{r}
+rate <- "4%" #Dummy
+renderValueBox({
+  valueBox(rate)
+})
+```
+
+### Average delivery time {.value-box}
+```{r}
+deliverTime <- 32 #Dummy
+renderValueBox({
+  valueBox(deliverTime)
+})
+```
+
+### Change of Avg.Delivery time from last month {.value-box}
+```{r}
+Deliveryrate <- "+12 Mins" #Dummy
+renderValueBox({
+  valueBox(Deliveryrate,color="red")
+})
+```
+
+Row
+-------------------------------------
+### Order trend over time
+
+```{r Trends plot, echo=FALSE}
+ggplotly(order_trends)
+```
+
+Row
+-------------------------------------
+### Top performing locations
+```{r Top performing locations, echo=FALSE}
+
+delivery_df %>% 
+  select(destination) %>% 
+  group_by(destination) %>% 
+  count() %>% 
+  arrange(desc(n)) %>% 
+  datatable(options = list(lengthMenu = c(5, 10, 15, 20)))
+```
+
+### Least performing locations
+```{r Least performing, echo=FALSE}
+delivery_df %>% 
+  select(destination) %>% 
+  group_by(destination) %>% 
+  count() %>% 
+  arrange(n) %>% 
+  datatable(options = list(lengthMenu = c(5, 10, 15, 20)))
+```
+
+Row
+-------------------------------------
+```{r Geo plots, eval=FALSE, include=FALSE}
+m <- leaflet() %>% addTiles()
+
+m <- m %>%
+  setView(46.62, 24.59, 5) %>% # map location
+  addMarkers(46.52, 24.6) %>% # add a marker
+  #addPopups(46.72, 24.58, popup = "Hello Careem!") %>% # popup
+  # add som circles:
+  addCircles(color = "black", runif(90, -2, -1), runif(90, 53, 54), runif(90, 10, 500))
+
+setwd("~/GitHub/Careem-case-study/SAU_adm")
+
+SAU_adm <- read_csv("SAU_adm1.csv")
+
+shape <- readOGR(dsn = ".", layer = "SAU_adm1")
+
+pizza <- read_csv("~/GitHub/Careem-case-study/pizza.csv")
+
+leaflet() %>%
+  # base map
+  addProviderTiles("Hydda.Base") %>%
+  addPolygons(data=shape,
+              stroke=TRUE, color="white", weight=1, opacity=1,
+              fill=TRUE, fillColor="#cccccc", smoothFactor=0.5) 
+
+m %>% 
+# add pizza layer
+ addCircles(data=pizza,
+             lng=~Longitude, lat=~Latitude,
+             radius=10, # size is in m for addCircles O_o
+             color="white", weight=1, opacity=1,
+             fillColor="steelblue", fillOpacity=1)
+
+
+pizza <- pizza %>% 
+  mutate(size = sample(25:45, nrow(pizza)))
 
 ```
 
